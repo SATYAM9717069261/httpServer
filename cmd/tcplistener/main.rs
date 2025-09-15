@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::{self, Read};
-fn get_lines_reader(mut file: File) -> Vec<String> {
+use std::net::{TcpListener, TcpStream};
+
+fn get_lines_reader(mut file: TcpStream) -> Vec<String> {
     let mut result: Vec<String> = vec![];
 
     let mut buffer = [0u8; 8];
@@ -37,16 +39,27 @@ fn get_lines_reader(mut file: File) -> Vec<String> {
     result
 }
 fn main() -> io::Result<()> {
-    let file = match File::open("message.txt") {
-        Ok(f) => f,
+    let listen = match TcpListener::bind("127.0.0.1:8080") {
+        Ok(d) => d,
         Err(e) => {
-            eprintln!("Failed to open file: {}", e);
+            eprint!("Tcp Error: {:?}", e);
             return Ok(());
         }
     };
-    let lines: Vec<String> = get_lines_reader(file);
-    for line in &lines {
-        eprint!("{}\n", line);
+
+    for stream in listen.incoming() {
+        match stream {
+            Ok(stream) => {
+                eprintln!(" Data  +> {:?}", stream);
+                get_lines_reader(stream);
+            }
+            Err(e) => println!("couldn't get client: {e:?}"),
+        }
     }
+
+    //let lines: Vec<String> = get_lines_reader(file);
+    //for line in &lines {
+    //    eprint!("{}\n", line);
+    //}
     Ok(())
 }
