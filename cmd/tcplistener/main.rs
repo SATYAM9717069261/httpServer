@@ -51,7 +51,10 @@ fn main() -> io::Result<()> {
         match stream {
             Ok(stream) => {
                 eprintln!(" Data  +> {:?}", stream);
-                get_lines_reader(stream);
+                let lines: Vec<String> = get_lines_reader(stream);
+                for line in &lines {
+                    eprint!("{}\n", line);
+                }
             }
             Err(e) => println!("couldn't get client: {e:?}"),
         }
