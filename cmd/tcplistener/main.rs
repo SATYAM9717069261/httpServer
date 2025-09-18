@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::net::{TcpListener, TcpStream};
 
-fn get_lines_reader(mut file: TcpStream) -> Vec<String> {
+fn get_lines_reader(mut file: TcpStream) {
     let mut result: Vec<String> = vec![];
 
     let mut buffer = [0u8; 8];
@@ -12,10 +12,9 @@ fn get_lines_reader(mut file: TcpStream) -> Vec<String> {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("Failed to Read {} ", e);
-                return vec![];
+                break;
             }
         };
-
         if data == 0 {
             break;
         }
@@ -24,7 +23,7 @@ fn get_lines_reader(mut file: TcpStream) -> Vec<String> {
             Ok(d) => d.to_string(),
             Err(e) => {
                 eprintln!("Failed to Convet Byte to Char");
-                return vec![];
+                break;
             }
         };
         let tmp_chars = left_over.clone() + &chunk;
@@ -35,8 +34,12 @@ fn get_lines_reader(mut file: TcpStream) -> Vec<String> {
             result.push(iter[data].to_string());
         }
         left_over = iter[size - 1].to_string();
+
+        for line in result.drain(..) {
+            eprint!("{}\n", line);
+        }
+        result.clear();
     }
-    result
 }
 fn main() -> io::Result<()> {
     let listen = match TcpListener::bind("127.0.0.1:8080") {
@@ -49,13 +52,7 @@ fn main() -> io::Result<()> {
 
     for stream in listen.incoming() {
         match stream {
-            Ok(stream) => {
-                eprintln!(" Data  +> {:?}", stream);
-                let lines: Vec<String> = get_lines_reader(stream);
-                for line in &lines {
-                    eprint!("{}\n", line);
-                }
-            }
+            Ok(stream) => get_lines_reader(stream),
             Err(e) => println!("couldn't get client: {e:?}"),
         }
     }
