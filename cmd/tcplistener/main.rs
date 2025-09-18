@@ -59,10 +59,5 @@ fn main() -> io::Result<()> {
             Err(e) => println!("couldn't get client: {e:?}"),
         }
     }
-
-    //let lines: Vec<String> = get_lines_reader(file);
-    //for line in &lines {
-    //    eprint!("{}\n", line);
-    //}
     Ok(())
 }
