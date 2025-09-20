@@ -1,9 +1,18 @@
+use std::{collections::HashMap, io::Bytes};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestLine {
     pub method: String,
     pub request_target: String,
     pub http_version: String,
 }
+
+pub struct Request {
+    pub RequestLine: RequestLine,
+    pub Headers: HashMap<String, String>,
+    pub Body: Bytes<u8>,
+}
+
 impl RequestLine {
     pub fn from_str(line: &str) -> Result<Self, &'static str> {
         let parts: Vec<&str> = line.trim().split_whitespace().collect();
@@ -22,5 +31,11 @@ impl RequestLine {
             request_target,
             http_version,
         });
+    }
+}
+
+impl Request {
+    pub fn RequestFromReader(line: &str) -> Result<Self, &'static str> {
+        return {};
     }
 }
