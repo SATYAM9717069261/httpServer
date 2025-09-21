@@ -11,7 +11,7 @@ fn validatehttp(nam: &str) -> bool {
     return nam == "HTTP/1.1";
 }
 impl RequestLine {
-    fn request_parsing(line: &str) -> Result<Self, &'static str> {
+    pub fn request_parsing(line: &str) -> Result<Self, &'static str> {
         let parts: Vec<&str> = line.trim().split_whitespace().collect();
         if parts.len() != 3 {
             return Err("invalid request line");
