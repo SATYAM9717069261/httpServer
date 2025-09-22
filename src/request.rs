@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Bytes};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestLine {
@@ -6,12 +6,18 @@ pub struct RequestLine {
     pub request_target: String,
     pub http_version: String,
 }
+const HTTP_VERSION: [&str; 2] = ["HTTP/1.1", "HTTP/2.0"];
 
-fn validatehttp(nam: &str) -> bool {
-    return nam == "HTTP/1.1";
+fn validatehttp(http_version: &str) -> bool {
+    for version in HTTP_VERSION.iter() {
+        if http_version == *version {
+            return true;
+        }
+    }
+    return false;
 }
 impl RequestLine {
-    pub fn request_parsing(line: &str) -> Result<Self, &'static str> {
+    fn request_parsing(line: &str) -> Result<Self, &'static str> {
         let parts: Vec<&str> = line.trim().split_whitespace().collect();
         if parts.len() != 3 {
             return Err("invalid request line");
@@ -73,7 +79,7 @@ impl Request {
                 request_line = data;
             }
             Err(er) => {
-                panic!("request Parsing Error {:?}", er);
+                return Err(er);
             }
         }
         let headers: Headers;
@@ -82,7 +88,7 @@ impl Request {
                 headers = data;
             }
             Err(er) => {
-                panic!("header Parsing Error {:?}", er);
+                return Err(er);
             }
         }
         return Ok(Self {
