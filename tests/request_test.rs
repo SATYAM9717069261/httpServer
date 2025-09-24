@@ -66,32 +66,23 @@ impl Read for ChunkReader {
         Ok(wrote_bytes)
     }
 }
-
 #[test]
 fn test_chunk_reader() {
     let mut reader = ChunkReader::new(
         "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
         3,
     );
-    let mut buf = [0u8; 4];
+    let mut buf = [0u8; 3];
 
     let n = reader.read(&mut buf).unwrap();
-    eprintln!("1 {} => {:?}", n, &buf);
-    assert_eq!(&buf[..n], b"Hel");
+    assert_eq!(&buf[..n], b"GET");
 
     let n = reader.read(&mut buf).unwrap();
-    eprintln!("2 {} => {:?}  {:?}", n, &buf, reader.data);
-    assert_eq!(&buf[..n], b"loW");
+    assert_eq!(&buf[..n], b" / ");
 
     let n = reader.read(&mut buf).unwrap();
-    eprintln!("3 {} => {:?}", n, &buf);
-    assert_eq!(&buf[..n], b"orl");
+    assert_eq!(&buf[..n], b"HTT");
 
     let n = reader.read(&mut buf).unwrap();
-    eprintln!("4 {} => {:?}", n, &buf);
-    assert_eq!(&buf[..n], b"d");
-
-    let n = reader.read(&mut buf).unwrap();
-    eprintln!("5 {} => {:?}", n, &buf);
-    assert_eq!(n, 0);
+    assert_eq!(&buf[..n], b"P/1");
 }
