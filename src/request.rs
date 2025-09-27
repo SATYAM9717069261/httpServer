@@ -1,4 +1,8 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    io::{Error, Read},
+    net::TcpStream,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestLine {
@@ -16,12 +20,25 @@ fn validatehttp(http_version: &str) -> bool {
     }
     return false;
 }
+const SEPRATOR: &[u8] = b"\r\n";
+
 impl RequestLine {
-    fn request_parsing(line: &str) -> Result<Self, &'static str> {
-        let parts: Vec<&str> = line.trim().split_whitespace().collect();
+    fn request_parsing(&self, line: &[u8]) -> Result<(Self, usize), &'static str> {
+        let idx = match line.windows(SEPRATOR.len()).position(|w| w == SEPRATOR) {
+            Some(idx) => idx,
+            None => return Err("Invalid request line"),
+        };
+        let header = &line[0..idx];
+        let head = header.len() + SEPRATOR.len();
+
+        let header_str = std::str::from_utf8(header).map_err(|_| "Invalid UTF-8")?;
+
+        let parts: Vec<&str> = header_str.split_whitespace().collect();
+
         if parts.len() != 3 {
             return Err("invalid request line");
         }
+
         let method: String = parts[0].to_string();
         let request_target: String = parts[1].to_string();
 
@@ -33,12 +50,12 @@ impl RequestLine {
             .strip_prefix("HTTP/")
             .ok_or("missing HTTP prefix")?
             .to_string();
-
-        return Ok(Self {
+        let rl = Self {
             method,
             request_target,
             http_version,
-        });
+        };
+        return Ok((rl, head));
     }
 }
 
@@ -46,7 +63,7 @@ impl RequestLine {
 pub struct Headers {
     pub headers: HashMap<String, String>,
 }
-
+/*
 impl Headers {
     pub fn header_parser(header_str: &str) -> Result<Self, &'static str> {
         let mut headers: HashMap<String, String> = HashMap::new();
@@ -62,38 +79,88 @@ impl Headers {
         }
         return Ok(Self { headers });
     }
+} */
+
+#[derive(Debug, PartialEq)]
+enum ParserState {
+    init,
+    done,
 }
 
 #[derive(Debug)]
 pub struct Request {
     pub request_line: RequestLine,
-    pub headers: Headers,
+    pub state: ParserState,
 }
-const SEPRATOR: &str = "\r\n";
+
 impl Request {
-    pub fn request_from_reader(request: &str) -> Result<Self, &'static str> {
-        let parts: Vec<_> = request.match_indices(SEPRATOR).map(|(i, _)| i).collect();
-        let request_line: RequestLine;
-        match RequestLine::request_parsing(&request[..parts[0]]) {
-            Ok(data) => {
-                request_line = data;
-            }
-            Err(er) => {
-                return Err(er);
+    pub fn parse(&mut self, data: &[u8]) -> Result<u32, Error> {
+        let mut read: usize = 0;
+        loop {
+            match self.state {
+                ParserState::init => {
+                    let (rl, head): (RequestLine, usize) = match self
+                        .request_line
+                        .request_parsing(&data[read..])
+                    {
+                        Ok(d) => d,
+                        Err(er) => {
+                            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, er));
+                        }
+                    };
+                    if head == 0 {
+                        break;
+                    }
+                    self.request_line = rl;
+                    read += head;
+                    self.state = ParserState::done;
+                }
+                ParserState::done => {
+                    break;
+                }
             }
         }
-        let headers: Headers;
-        match Headers::header_parser(&request[parts[0]..]) {
-            Ok(data) => {
-                headers = data;
+        return Ok(1);
+    }
+
+    pub fn done(&self) -> bool {
+        return self.state == ParserState::done;
+    }
+
+    pub fn request_from_reader(mut reader: TcpStream) -> Result<Self, Error> {
+        let mut request: (Request, ParserState);
+
+        let mut buffer = [0u8, 254];
+        let mut head_location = 0;
+        loop {
+            let lines_readed = match reader.read(&mut buffer) {
+                Ok(count) => count,
+                Err(e) => {
+                    eprint!("Error {}", e);
+                    return Err(e);
+                }
+            };
+            if lines_readed == 0 {
+                break;
             }
-            Err(er) => {
-                return Err(er);
+            head_location += lines_readed;
+
+            let count = match request.parse(&buffer[..head_location]) {
+                Ok(c) => c,
+                Err(er) => {
+                    eprint!("Error {:?}", er);
+                    return Err(er);
+                }
+            };
+
+            // move buffer data towards front of buffer or remove readed Portion from Buffer
+            buffer.copy_within(head_location.., 0);
+            head_location -= count as usize;
+
+            if request.done() {
+                break;
             }
         }
-        return Ok(Self {
-            request_line,
-            headers,
-        });
+        return Ok(request);
     }
 }

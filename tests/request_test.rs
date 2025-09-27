@@ -1,5 +1,5 @@
 use httpServer::request::Request;
-use std::io::{self, Read, Result};
+use std::io::{Read, Result};
 
 #[test]
 fn test_request_parse_root() {
