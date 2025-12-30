@@ -1,19 +1,5 @@
-use bytes::Bytes;
-use std::{
-    collections::HashMap,
-    io::{Error, Read},
-};
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RequestLine {
-    pub method: String,
-    pub request_target: String,
-    pub http_version: String,
-}
-#[derive(Debug)]
-pub struct Headers {
-    pub headers: HashMap<String, String>,
-}
+use crate::header::Header;
+use std::io::{Error, Read};
 
 #[derive(Debug, PartialEq)]
 pub enum ParserState {
@@ -23,69 +9,14 @@ pub enum ParserState {
 
 #[derive(Debug)]
 pub struct Request {
-    pub request_line: RequestLine,
-    pub state: ParserState,
-}
-
-const HTTP_VERSION: [&str; 2] = ["HTTP/1.1", "HTTP/2.0"];
-const SEPRATOR: &[u8] = b"\r\n";
-
-fn validatehttp(http_version: &str) -> bool {
-    for version in HTTP_VERSION.iter() {
-        if http_version == *version {
-            return true;
-        }
-    }
-    return false;
-}
-
-impl RequestLine {
-    fn request_parsing(&self, line: &[u8]) -> Result<(Self, usize), &'static str> {
-        //print!("REQ=> {:?}", String::from_utf8(line).unwrap());
-        let idx = match line.windows(SEPRATOR.len()).position(|w| w == SEPRATOR) {
-            Some(idx) => idx,
-            None => return Err("Invalid request line Didn't found /\r/\n [Increase Buffer Size]"),
-        };
-
-        let header = &line[0..idx];
-        let head = header.len() + SEPRATOR.len();
-
-        let header_str = std::str::from_utf8(header).map_err(|_| "Invalid UTF-8")?;
-
-        let parts: Vec<&str> = header_str.split_whitespace().collect();
-
-        if parts.len() != 3 {
-            return Err("invalid request line");
-        }
-
-        let method: String = parts[0].to_string();
-        let request_target: String = parts[1].to_string();
-
-        if validatehttp(parts[2]) != true {
-            return Err("Validation Fail on http");
-        }
-
-        let http_version: String = parts[2]
-            .strip_prefix("HTTP/")
-            .ok_or("missing HTTP prefix")?
-            .to_string();
-        let rl = Self {
-            method,
-            request_target,
-            http_version,
-        };
-        return Ok((rl, head));
-    }
+    header: Header, // incomming data
+    state: ParserState,
 }
 
 impl Request {
     pub fn new() -> Self {
-        Request {
-            request_line: RequestLine {
-                method: String::new(),
-                request_target: String::new(),
-                http_version: String::new(),
-            },
+        Self {
+            header: Header::new(),
             state: ParserState::Init,
         }
     }
@@ -95,8 +26,8 @@ impl Request {
         loop {
             match self.state {
                 ParserState::Init => {
-                    let (rl, head): (RequestLine, usize) = match self
-                        .request_line
+                    let (rl, head): (Header, usize) = match self
+                        .header
                         .request_parsing(&data[read..])
                     {
                         Ok(d) => d,
@@ -107,7 +38,7 @@ impl Request {
                     if head == 0 {
                         break;
                     }
-                    self.request_line = rl;
+                    self.header = rl;
                     read += head;
                     self.state = ParserState::Done;
                 }
