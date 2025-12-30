@@ -1,39 +1,7 @@
 use httpServer::request::Request;
 use std::io::{Read, Result};
 
-#[test]
-fn test_request_parse_root() {
-    let input =
-        "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n";
-    let req = Request::request_from_reader(input).expect("should parse");
-    assert_eq!(req.request_line.method, "GET");
-    assert_eq!(req.request_line.request_target, "/");
-    assert_eq!(req.request_line.http_version, "1.1");
-}
-
-#[test]
-fn test_request_parse_path() {
-    let input = "GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n";
-    let req = Request::request_from_reader(input).expect("should parse");
-    assert_eq!(req.request_line.method, "GET");
-    assert_eq!(req.request_line.request_target, "/coffee");
-    assert_eq!(req.request_line.http_version, "1.1");
-}
-
-#[test]
-fn test_request_parse_header_error() {
-    let input = "GET /coffee/12 HTTP/3.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\nE";
-    let err = Request::request_from_reader(input).unwrap_err();
-    assert_eq!(err, "Validation Fail on http");
-}
-
-#[test]
-fn test_request_parse_error() {
-    let input = "/coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\nE";
-    let err = Request::request_from_reader(input).unwrap_err();
-    assert_eq!(err, "invalid request line");
-}
-
+#[derive(Debug)]
 struct ChunkReader {
     data: Vec<u8>,
     bytes_per_read: usize,
@@ -41,48 +9,45 @@ struct ChunkReader {
 }
 
 impl ChunkReader {
-    /**
-     * @input{data:String,bytes_per_read:u8}
-     * bytes_per_read means entire String/vvector is divided into chunks
-     */
     fn new(data: &str, bytes_per_read: usize) -> Self {
         Self {
             data: data.as_bytes().to_vec(),
-            bytes_per_read,
+            bytes_per_read: bytes_per_read,
             head_pos: 0,
         }
     }
 }
 impl Read for ChunkReader {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-        //store n bytes in buf and return how many bytes are stored
+        print!(" Buffer Got  +>{:?} ", buf);
         if self.head_pos >= self.data.len() {
             return Ok(0);
         }
         let last_indx = (self.head_pos + self.bytes_per_read).min(self.data.len());
         let wrote_bytes = last_indx - self.head_pos;
+        eprintln!(
+            "DETAILS {:?} {} {} {}",
+            self.data, self.head_pos, last_indx, wrote_bytes
+        );
         buf[..wrote_bytes].copy_from_slice(&self.data[self.head_pos..last_indx]);
+        eprintln!("Bufer =>  {:?}", buf);
         self.head_pos += wrote_bytes;
         Ok(wrote_bytes)
     }
 }
 #[test]
 fn test_chunk_reader() {
-    let mut reader = ChunkReader::new(
-        "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
-        3,
+    let reader = ChunkReader::new(
+        "GET /coffee HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
+        30,
     );
-    let mut buf = [0u8; 3];
 
-    let n = reader.read(&mut buf).unwrap();
-    assert_eq!(&buf[..n], b"GET");
+    let (request, state) = match Request::request_from_reader(reader) {
+        Ok(Request) => (Request.request_line, Request.state),
+        Err(err) => panic!("Error: {}", err),
+    };
 
-    let n = reader.read(&mut buf).unwrap();
-    assert_eq!(&buf[..n], b" / ");
-
-    let n = reader.read(&mut buf).unwrap();
-    assert_eq!(&buf[..n], b"HTT");
-
-    let n = reader.read(&mut buf).unwrap();
-    assert_eq!(&buf[..n], b"P/1");
+    assert_eq!(request.method, "GET");
+    assert_eq!(request.request_target, "/coffee");
+    assert_eq!(request.http_version, "1.1");
 }

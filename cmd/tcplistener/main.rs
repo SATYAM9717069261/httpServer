@@ -18,7 +18,6 @@ fn get_lines_reader(mut file: TcpStream) {
         if data == 0 {
             break;
         }
-
         let chunk: String = match str::from_utf8(&buffer[..data]) {
             Ok(d) => d.to_string(),
             Err(e) => {
