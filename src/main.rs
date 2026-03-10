@@ -1,3 +1,6 @@
+mod server;
+mod request;
+mod response;
 fn main() {
-    print!("Working");
+    server::start();
 }
