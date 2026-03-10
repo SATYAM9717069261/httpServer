@@ -1,20 +1,24 @@
 use std::net::{TcpListener, TcpStream};
 use std::io::{Read,Write};
 use crate::request::Request;
-use crate::response::Response;
+use crate::route::route;
+use crate::pool::ThreadPool;
 
 const serverRunAt:&str= "127.0.0.1:8080";
 
 pub fn start() {
     let listener = TcpListener::bind(serverRunAt).expect("Failed to bind port");
     println!("Server run on {}",serverRunAt);
-
+    let pool = ThreadPool::new(4);
 
     //handle Multiple Connection
     for stream in listener.incoming(){
         match stream{
             Ok(stream) =>{
-                handleConnection(stream);
+                 pool.execute(|| {
+                    handleConnection(stream);
+                });
+//                handleConnection(stream);
             },
             Err(exc)=>{
                 println!("Connection failed: {}", exc);
@@ -29,40 +33,12 @@ pub fn handleConnection(mut stream:TcpStream){
     stream.read(&mut buffer).unwrap();
     let req = Request::parse(&buffer);
     let response = route(req);
+
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();
 }
 
-fn route(request: Request) -> String {
 
-    match request.path.as_str() {
-        "/" => {
-            Response::new()
-                .header("Content-Type", "text/plain")
-                .body("Welcome to Rust HTTP Server")
-                .to_http_string()
-        }
-        "/hello" => {
-            Response::new()
-                .header("Content-Type", "text/plain")
-                .body("Hello Satyam!")
-                .to_http_string()
-        }
-        "/json" => {
-            Response::new()
-                .header("Content-Type", "application/json")
-                .body(r#"{"message":"hello"}"#)
-                .to_http_string()
-        }
-        _ => {
-            Response::new()
-                .status(404, "Not Found")
-                .header("Content-Type", "text/plain")
-                .body("404 Page Not Found")
-                .to_http_string()
-        }
-    }
-}
 
 
 #[cfg(test)]
